@@ -29,7 +29,7 @@ struct DispatchIndirect {
 struct SortInfos {
     keys_size: atomic<u32>,  // instance_count in DrawIndirect
     //data below is for info inside radix sort 
-    padded_size: u32, 
+    padded_size: u32,
     passes: u32,
     even_pass: u32,
     odd_pass: u32,
@@ -55,9 +55,8 @@ struct Gaussian {
     scale: array<u32,2>
 };
 
-struct Splat {
-    //TODO: store information for 2D splat rendering
-};
+//TODO: store information for 2D splat rendering
+struct Splat {};
 
 //TODO: bind your data here
 @group(2) @binding(0)
