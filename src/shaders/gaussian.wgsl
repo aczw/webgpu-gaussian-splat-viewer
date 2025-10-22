@@ -4,7 +4,7 @@ struct VertexOutput {
 };
 
 //TODO: information defined in preprocess compute shader
-struct Splat {};
+// struct Splat {};
 
 @vertex
 fn vs_main(

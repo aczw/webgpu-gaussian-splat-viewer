@@ -56,7 +56,7 @@ struct Gaussian {
 };
 
 //TODO: store information for 2D splat rendering
-struct Splat {};
+// struct Splat {};
 
 //TODO: bind your data here
 @group(2) @binding(0)
