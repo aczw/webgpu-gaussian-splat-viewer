@@ -25,3 +25,6 @@ dist-ssr
 /.vite
 
 */scenes
+
+# Because I use Bun
+bun.lock
