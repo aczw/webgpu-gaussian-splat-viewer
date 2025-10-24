@@ -13,9 +13,10 @@ const createBuffer = (
   label: string,
   size: number,
   usage: GPUBufferUsageFlags,
-  data?: ArrayBuffer | ArrayBufferView<ArrayBuffer>
+  data?: ArrayBuffer | ArrayBufferView
 ) => {
   const buffer = device.createBuffer({ label, size, usage });
+  // @ts-ignore
   if (data) device.queue.writeBuffer(buffer, 0, data);
   return buffer;
 };
