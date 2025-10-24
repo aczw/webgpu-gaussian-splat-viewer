@@ -180,8 +180,8 @@ export default function get_renderer(
   });
 
   // TODO(aczw): primitive should use triangle fan/strip instead of individual triangles?
-  const uniformsBgl = device.createBindGroupLayout({
-    label: "Gaussian indirect render uniforms bind group layout",
+  const constantsBgl = device.createBindGroupLayout({
+    label: "Gaussian indirect render constants bind group layout",
     entries: [
       {
         // Camera uniforms
@@ -189,19 +189,28 @@ export default function get_renderer(
         visibility: GPUShaderStage.VERTEX,
         buffer: { type: "uniform" },
       },
+      {
+        // Splats storage buffer
+        binding: 1,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "read-only-storage" },
+      },
     ],
   });
-  const uniformsBg = device.createBindGroup({
-    label: "Gaussian indirect render uniforms bind group",
-    layout: uniformsBgl,
-    entries: [{ binding: 0, resource: { buffer: camera_buffer } }],
+  const constantsBg = device.createBindGroup({
+    label: "Gaussian indirect render constants bind group",
+    layout: constantsBgl,
+    entries: [
+      { binding: 0, resource: { buffer: camera_buffer } },
+      { binding: 1, resource: { buffer: splatsStorageBuffer } },
+    ],
   });
 
   const renderPipeline = device.createRenderPipeline({
     label: "Gaussian indirect render pipeline",
     layout: device.createPipelineLayout({
       label: "Gaussian indirect render pipeline layout",
-      bindGroupLayouts: [uniformsBgl],
+      bindGroupLayouts: [constantsBgl],
     }),
     vertex: {
       module: gaussianRenderShader,
@@ -252,7 +261,7 @@ export default function get_renderer(
         });
 
         renderPass.setPipeline(renderPipeline);
-        renderPass.setBindGroup(0, uniformsBg);
+        renderPass.setBindGroup(0, constantsBg);
         renderPass.drawIndirect(indirectBuffer, 0);
 
         renderPass.end();

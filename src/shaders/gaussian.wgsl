@@ -16,6 +16,7 @@ struct VertexOutput {
 // struct Splat {};
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
+@group(0) @binding(1) var<storage, read> splats: array<vec3<f32>>;
 
 const positions = array<vec2<f32>, 6>(
     vec2<f32>(-0.01, -0.01), vec2<f32>(0.01, -0.01), vec2<f32>(-0.01, 0.01),
@@ -23,13 +24,20 @@ const positions = array<vec2<f32>, 6>(
 );
 
 @vertex
-fn vs_main(@builtin(vertex_index) index: u32) -> VertexOutput {
+fn vs_main(
+    @builtin(vertex_index) vertIdx: u32,
+    @builtin(instance_index) instIdx: u32 /* Easy access to the number of splats to draw */
+) -> VertexOutput {
     // TODO: reconstruct 2D quad based on information from splat, pass
-    let aspect = camera.viewport.x / camera.viewport.y;
-    let position = positions[index];
+    var localPos: vec2<f32> = positions[vertIdx];
+    localPos = vec2<f32>(localPos.x, localPos.y * (camera.viewport.x / camera.viewport.y));
+
+    // Translate to "world space" NDC position from "local space" (centered at origin)
+    let offset: vec3<f32> = splats[instIdx];
+    let worldPos = vec3<f32>(localPos.xy + offset.xy, offset.z);
 
     var out: VertexOutput;
-    out.position = vec4<f32>(position.x, position.y * aspect, 0.0, 1.0);
+    out.position = vec4<f32>(worldPos, 1.0);
 
     return out;
 }

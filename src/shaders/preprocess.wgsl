@@ -40,7 +40,7 @@ struct Gaussian {
 @group(0) @binding(1) var<uniform> camera: CameraUniforms;
 @group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
 
-@group(1) @binding(1) var<storage, read_write> splats: array<vec3<f32>>;
+@group(1) @binding(0) var<storage, read_write> splats: array<vec3<f32>>;
 
 @group(2) @binding(0) var<storage, read_write> sort_infos: SortInfos;
 @group(2) @binding(1) var<storage, read_write> sort_depths : array<u32>;
