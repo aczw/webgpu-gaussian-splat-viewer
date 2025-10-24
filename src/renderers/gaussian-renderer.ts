@@ -55,6 +55,14 @@ export default function get_renderer(
     GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE
   );
 
+  const zeroBuffer = createBuffer(
+    device,
+    "Zero buffer",
+    4,
+    GPUBufferUsage.COPY_SRC,
+    new Uint32Array([0])
+  );
+
   // ===============================================
   //    Create Compute Pipeline and Bind Groups
   // ===============================================
@@ -233,6 +241,9 @@ export default function get_renderer(
   // ===============================================
   return {
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
+      // Reset splat count to prepare for preprocess pass
+      encoder.copyBufferToBuffer(zeroBuffer, 0, sorter.sort_info_buffer, 0, 4);
+
       {
         const preprocessPass = encoder.beginComputePass({
           label: "Gaussian preprocess compute pass",
@@ -246,6 +257,9 @@ export default function get_renderer(
 
         preprocessPass.end();
       }
+
+      // Use updated splat count for instance count in indirect drawing
+      encoder.copyBufferToBuffer(sorter.sort_info_buffer, 0, indirectBuffer, 4, 4);
 
       sorter.sort(encoder);
 

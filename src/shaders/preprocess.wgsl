@@ -131,4 +131,6 @@ fn preprocess(
 
     let keys_per_dispatch = workgroupSize * sortKeyPerThread; 
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
+
+    atomicAdd(&sort_infos.keys_size, 1u);
 }
