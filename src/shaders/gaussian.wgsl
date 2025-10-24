@@ -8,15 +8,12 @@ struct CameraUniforms {
 };
 
 struct VertexOutput {
-    @builtin(position) position: vec4<f32>,
-    //TODO: information passed from vertex shader to fragment shader
+    @builtin(position) position: vec4<f32>
 };
-
-//TODO: information defined in preprocess compute shader
-// struct Splat {};
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<storage, read> splats: array<vec3<f32>>;
+@group(0) @binding(2) var<uniform> scaling: f32;
 
 const positions = array<vec2<f32>, 6>(
     vec2<f32>(-0.01, -0.01), vec2<f32>(0.01, -0.01), vec2<f32>(-0.01, 0.01),
@@ -28,8 +25,7 @@ fn vs_main(
     @builtin(vertex_index) vertIdx: u32,
     @builtin(instance_index) instIdx: u32 /* Easy access to the number of splats to draw */
 ) -> VertexOutput {
-    // TODO: reconstruct 2D quad based on information from splat, pass
-    var localPos: vec2<f32> = positions[vertIdx];
+    var localPos: vec2<f32> = positions[vertIdx] * scaling;
     localPos = vec2<f32>(localPos.x, localPos.y * (camera.viewport.x / camera.viewport.y));
 
     // Translate to "world space" NDC position from "local space" (centered at origin)

@@ -33,9 +33,6 @@ struct Gaussian {
     scale: array<u32, 2>
 };
 
-//TODO: store information for 2D splat rendering
-// struct Splat {};
-
 @group(0) @binding(0) var<uniform> numPoints: u32;
 @group(0) @binding(1) var<uniform> camera: CameraUniforms;
 @group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
@@ -123,6 +120,8 @@ fn preprocess(
     let a = unpack2x16float(vertex.pos_opacity[0]);
     let b = unpack2x16float(vertex.pos_opacity[1]);
     
+    // TODO(aczw): can also construct quads here, and store the radius in `splats`. This would
+    // allow the quad size to also change based on depth
     let worldPos = vec4<f32>(a.x, a.y, b.x, 1.0);
     let clipPos = camera.proj * camera.view * worldPos;
     let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;

@@ -5,7 +5,9 @@ import { Renderer } from "./renderer";
 import preprocessWgsl from "../shaders/preprocess.wgsl";
 import gaussianWgsl from "../shaders/gaussian.wgsl";
 
-export interface GaussianRenderer extends Renderer {}
+export interface GaussianRenderer extends Renderer {
+  updateScaling: (scaling: number) => void;
+}
 
 // Utility to create GPU buffers
 const createBuffer = (
@@ -43,7 +45,7 @@ export default function get_renderer(
   const numPointsUniformBuffer = createBuffer(
     device,
     "Gaussian preprocess num points uniform buffer",
-    4,
+    Uint32Array.BYTES_PER_ELEMENT /* 4 */,
     GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     new Uint32Array([pc.num_points])
   );
@@ -55,12 +57,12 @@ export default function get_renderer(
     GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE
   );
 
-  const zeroBuffer = createBuffer(
+  const scalingUniformBuffer = createBuffer(
     device,
-    "Zero buffer",
-    4,
-    GPUBufferUsage.COPY_SRC,
-    new Uint32Array([0])
+    "Gaussian scaling uniform buffer",
+    Float32Array.BYTES_PER_ELEMENT /* 4 */,
+    GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    new Float32Array([1])
   );
 
   // ===============================================
@@ -204,6 +206,12 @@ export default function get_renderer(
         visibility: GPUShaderStage.VERTEX,
         buffer: { type: "read-only-storage" },
       },
+      {
+        // Scaling uniform buffer
+        binding: 2,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "uniform" },
+      },
     ],
   });
   const constantsBg = device.createBindGroup({
@@ -212,6 +220,7 @@ export default function get_renderer(
     entries: [
       { binding: 0, resource: { buffer: camera_buffer } },
       { binding: 1, resource: { buffer: splatsStorageBuffer } },
+      { binding: 2, resource: { buffer: scalingUniformBuffer } },
     ],
   });
 
@@ -284,5 +293,7 @@ export default function get_renderer(
       }
     },
     camera_buffer,
+    updateScaling: (scaling) =>
+      device.queue.writeBuffer(scalingUniformBuffer, 0, new Float32Array([scaling])),
   };
 }
