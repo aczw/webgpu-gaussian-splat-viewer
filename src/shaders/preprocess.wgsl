@@ -127,10 +127,12 @@ fn preprocess(
     let clipPos = camera.proj * camera.view * worldPos;
     let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;
 
-    splats[index] = ndcPos;
+    // Frustum culling. Use a slightly bigger bounding box so we still draw splats on the edges
+    if ((ndcPos.x >= -1.2 && ndcPos.x <= 1.2) && (ndcPos.y >= -1.2 && ndcPos.y <= 1.2)) {
+        let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
+        splats[prevSize] = ndcPos;
+    }
 
     let keys_per_dispatch = workgroupSize * sortKeyPerThread; 
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
-
-    atomicAdd(&sort_infos.keys_size, 1u);
 }
