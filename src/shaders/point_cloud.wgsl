@@ -8,16 +8,14 @@ struct CameraUniforms {
 };
 
 struct Gaussian {
-    pos_opacity: array<u32,2>,
-    rot: array<u32,2>,
-    scale: array<u32,2>
+    pos_opacity: array<u32, 2>,
+    rot: array<u32, 2>,
+    scale: array<u32, 2>
 }
 
-@group(0) @binding(0)
-var<uniform> camera: CameraUniforms;
+@group(0) @binding(0) var<uniform> camera: CameraUniforms;
 
-@group(1) @binding(0)
-var<storage,read> gaussians : array<Gaussian>;
+@group(1) @binding(0) var<storage, read> gaussians : array<Gaussian>;
 
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
@@ -32,7 +30,7 @@ fn vs_main(
     let vertex = gaussians[in_vertex_index];
     let a = unpack2x16float(vertex.pos_opacity[0]);
     let b = unpack2x16float(vertex.pos_opacity[1]);
-    let pos = vec4<f32>(a.x, a.y, b.x, 1.);
+    let pos = vec4<f32>(a.x, a.y, b.x, 1.0);
 
     out.position = camera.proj * camera.view * pos;
 
@@ -41,5 +39,5 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1., 1., 0., 1.);
+    return vec4<f32>(1.0, 1.0, 0.0, 1.0);
 }

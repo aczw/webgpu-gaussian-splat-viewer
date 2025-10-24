@@ -1,25 +1,3 @@
-const SH_C0: f32 = 0.28209479177387814;
-const SH_C1 = 0.4886025119029199;
-const SH_C2 = array<f32,5>(
-    1.0925484305920792,
-    -1.0925484305920792,
-    0.31539156525252005,
-    -1.0925484305920792,
-    0.5462742152960396
-);
-const SH_C3 = array<f32,7>(
-    -0.5900435899266435,
-    2.890611442640554,
-    -0.4570457994644658,
-    0.3731763325901154,
-    -0.4570457994644658,
-    1.445305721320277,
-    -0.5900435899266435
-);
-
-override workgroupSize: u32;
-override sortKeyPerThread: u32;
-
 struct DispatchIndirect {
     dispatch_x: atomic<u32>,
     dispatch_y: u32,
@@ -50,23 +28,46 @@ struct RenderSettings {
 }
 
 struct Gaussian {
-    pos_opacity: array<u32,2>,
-    rot: array<u32,2>,
-    scale: array<u32,2>
+    pos_opacity: array<u32, 2>,
+    rot: array<u32, 2>,
+    scale: array<u32, 2>
 };
 
 //TODO: store information for 2D splat rendering
 // struct Splat {};
 
-//TODO: bind your data here
-@group(2) @binding(0)
-var<storage, read_write> sort_infos: SortInfos;
-@group(2) @binding(1)
-var<storage, read_write> sort_depths : array<u32>;
-@group(2) @binding(2)
-var<storage, read_write> sort_indices : array<u32>;
-@group(2) @binding(3)
-var<storage, read_write> sort_dispatch: DispatchIndirect;
+@group(0) @binding(0) var<uniform> numPoints: u32;
+@group(0) @binding(1) var<uniform> camera: CameraUniforms;
+@group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
+
+@group(1) @binding(1) var<storage, read_write> splats: array<vec3<f32>>;
+
+@group(2) @binding(0) var<storage, read_write> sort_infos: SortInfos;
+@group(2) @binding(1) var<storage, read_write> sort_depths : array<u32>;
+@group(2) @binding(2) var<storage, read_write> sort_indices : array<u32>;
+@group(2) @binding(3) var<storage, read_write> sort_dispatch: DispatchIndirect;
+
+const SH_C0: f32 = 0.28209479177387814;
+const SH_C1 = 0.4886025119029199;
+const SH_C2 = array<f32, 5>(
+    1.0925484305920792,
+    -1.0925484305920792,
+    0.31539156525252005,
+    -1.0925484305920792,
+    0.5462742152960396
+);
+const SH_C3 = array<f32, 7>(
+    -0.5900435899266435,
+    2.890611442640554,
+    -0.4570457994644658,
+    0.3731763325901154,
+    -0.4570457994644658,
+    1.445305721320277,
+    -0.5900435899266435
+);
+
+override workgroupSize: u32;
+override sortKeyPerThread: u32;
 
 /// reads the ith sh coef from the storage buffer 
 fn sh_coef(splat_idx: u32, c_idx: u32) -> vec3<f32> {
@@ -104,13 +105,29 @@ fn computeColorFromSH(dir: vec3<f32>, v_idx: u32, sh_deg: u32) -> vec3<f32> {
     }
     result += 0.5;
 
-    return  max(vec3<f32>(0.), result);
+    return max(vec3<f32>(0.), result);
 }
 
-@compute @workgroup_size(workgroupSize,1,1)
-fn preprocess(@builtin(global_invocation_id) gid: vec3<u32>, @builtin(num_workgroups) wgs: vec3<u32>) {
-    let idx = gid.x;
-    //TODO: set up pipeline as described in instruction
+@compute @workgroup_size(workgroupSize, 1, 1)
+fn preprocess(
+    @builtin(global_invocation_id) gid: vec3<u32>,
+    @builtin(num_workgroups) wgs: vec3<u32>
+) {
+    let index = gid.x;
+
+    if (index >= numPoints) {
+        return;
+    }
+
+    let vertex = gaussians[index];
+    let a = unpack2x16float(vertex.pos_opacity[0]);
+    let b = unpack2x16float(vertex.pos_opacity[1]);
+    
+    let worldPos = vec4<f32>(a.x, a.y, b.x, 1.0);
+    let clipPos = camera.proj * camera.view * worldPos;
+    let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;
+
+    splats[index] = ndcPos;
 
     let keys_per_dispatch = workgroupSize * sortKeyPerThread; 
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
