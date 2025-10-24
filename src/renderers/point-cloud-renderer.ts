@@ -49,6 +49,7 @@ export default function get_renderer(
         },
       ],
     });
+
     pass.setPipeline(render_pipeline);
     pass.setBindGroup(0, camera_bind_group);
     pass.setBindGroup(1, gaussian_bind_group);
@@ -61,7 +62,6 @@ export default function get_renderer(
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
       render(encoder, texture_view);
     },
-
     camera_buffer,
   };
 }

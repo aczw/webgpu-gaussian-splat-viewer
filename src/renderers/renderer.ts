@@ -50,7 +50,7 @@ export default async function init(
   const params = {
     fps: 0.0,
     gaussian_multiplier: 1,
-    renderer: "pointcloud",
+    renderer: "gaussian",
     ply_file: "",
     cam_file: "",
   };
@@ -167,6 +167,7 @@ export default async function init(
       renderer.frame(encoder, texture_view);
       device.queue.submit([encoder.finish()]);
     }
+
     requestAnimationFrame(frame);
   }
 
