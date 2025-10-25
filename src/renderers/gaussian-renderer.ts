@@ -89,6 +89,12 @@ export default function get_renderer(
         visibility: GPUShaderStage.COMPUTE,
         buffer: { type: "read-only-storage" },
       },
+      {
+        // Gaussian scaling uniform buffer
+        binding: 3,
+        visibility: GPUShaderStage.COMPUTE,
+        buffer: { type: "uniform" },
+      },
     ],
   });
   const preprocessConstantsBg = device.createBindGroup({
@@ -98,6 +104,7 @@ export default function get_renderer(
       { binding: 0, resource: { buffer: numPointsUniformBuffer } },
       { binding: 1, resource: { buffer: camera_buffer } },
       { binding: 2, resource: { buffer: pc.gaussian_3d_buffer } },
+      { binding: 3, resource: { buffer: scalingUniformBuffer } },
     ],
   });
 

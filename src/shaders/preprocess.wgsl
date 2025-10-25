@@ -28,7 +28,7 @@ struct RenderSettings {
 }
 
 struct Gaussian {
-    pos_opacity: array<u32, 2>,
+    pos_opacity: array<u32, 2>, // Combined together because each value is 16 bits
     rot: array<u32, 2>,
     scale: array<u32, 2>
 };
@@ -36,6 +36,7 @@ struct Gaussian {
 @group(0) @binding(0) var<uniform> numPoints: u32;
 @group(0) @binding(1) var<uniform> camera: CameraUniforms;
 @group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
+@group(0) @binding(3) var<uniform> gaussianScaling: f32;
 
 @group(1) @binding(0) var<storage, read_write> splats: array<vec3<f32>>;
 
@@ -116,22 +117,52 @@ fn preprocess(
         return;
     }
 
-    let vertex = gaussians[index];
-    let a = unpack2x16float(vertex.pos_opacity[0]);
-    let b = unpack2x16float(vertex.pos_opacity[1]);
+    let gaussian = gaussians[index];
+    let posXY: vec2<f32> = unpack2x16float(gaussian.pos_opacity[0]);
+    let posZopacity: vec2<f32> = unpack2x16float(gaussian.pos_opacity[1]);
     
     // TODO(aczw): can also construct quads here, and store the radius in `splats`. This would
     // allow the quad size to also change based on depth
-    let worldPos = vec4<f32>(a.x, a.y, b.x, 1.0);
+    let worldPos = vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
     let clipPos = camera.proj * camera.view * worldPos;
     let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;
 
     // Frustum culling. Use a slightly bigger bounding box so we still draw splats on the edges
-    if ((ndcPos.x >= -1.2 && ndcPos.x <= 1.2) && (ndcPos.y >= -1.2 && ndcPos.y <= 1.2)) {
-        let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
-        splats[prevSize] = ndcPos;
+    if (ndcPos.x < -1.2 || ndcPos.x > 1.2 || ndcPos.y < -1.2 || ndcPos.y > 1.2) {
+        return;
     }
 
-    let keys_per_dispatch = workgroupSize * sortKeyPerThread; 
+    // Unpack rotation and scale components
+    let rotRX: vec2<f32> = unpack2x16float(gaussian.rot[0]);
+    let rotYZ: vec2<f32> = unpack2x16float(gaussian.rot[1]);
+    let scaleXY: vec2<f32> = unpack2x16float(gaussian.scale[0]);
+    let scaleZW: vec2<f32> = unpack2x16float(gaussian.scale[1]);
+
+    // Construct quaternion and normalize just in case
+    let quat = normalize(vec4<f32>(rotRX.x, rotRX.y, rotYZ.x, rotYZ.y));
+    let r = quat.x;
+    let x = quat.y;
+    let y = quat.z;
+    let z = quat.w;
+
+    let rot = mat3x3<f32>(
+        1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - r * z), 2.0 * (x * z + r * y),
+        2.0 * (x * y + r * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - r * x),
+        2.0 * (x * z - r * y), 2.0 * (y * z + r * x), 1.0 - 2.0 * (x * x + y * y)
+    );
+    
+    var scale = mat3x3<f32>();
+    scale[0][0] = gaussianScaling * scaleXY.x;
+    scale[1][1] = gaussianScaling * scaleXY.y;
+    scale[2][2] = gaussianScaling * scaleZW.x;
+
+    // Compute 3D covariance
+    let m = scale * rot;
+    let sigma: mat3x3<f32> = transpose(m) * m;
+
+    let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
+    splats[prevSize] = ndcPos;
+
+    let keysPerDispatch = workgroupSize * sortKeyPerThread; 
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
 }
