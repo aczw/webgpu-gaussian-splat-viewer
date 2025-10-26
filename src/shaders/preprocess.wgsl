@@ -42,6 +42,7 @@ struct Splat {
 @group(0) @binding(1) var<uniform> camera: CameraUniforms;
 @group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
 @group(0) @binding(3) var<uniform> scaling: f32;
+@group(0) @binding(4) var<storage, read> sh: array<f32>;
 
 @group(1) @binding(0) var<storage, read_write> splats: array<Splat>;
 
