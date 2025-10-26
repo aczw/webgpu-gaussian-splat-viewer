@@ -177,7 +177,24 @@ fn preprocess(
 
     // Compute 2D covariance
     let wj: mat3x3<f32> = w * jacobian;
-    let cov2d: mat3x3<f32> = transpose(wj) * transpose(cov3d) * wj;
+    var cov2d: mat3x3<f32> = transpose(wj) * transpose(cov3d) * wj;
+
+    cov2d[0][0] += 0.3;
+    cov2d[1][1] += 0.3;
+
+    // Covariance is symmetrial, so we can just store diagonal once
+    let cov = vec3<f32>(cov2d[0][0], cov2d[0][1], cov2d[1][1]);
+
+    // Determinant
+    let det = cov.x * cov.z - cov.y * cov.y;
+
+    if (det == 0.0) {
+        return;
+    }
+
+    // Compute conic (inverse 2D covariance)
+    let detInv = 1.0 / det;
+    let conic = vec3<f32>(cov.z * detInv, -cov.y * detInv, cov.x * detInv);
 
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
     splats[prevSize] = ndcPos;
