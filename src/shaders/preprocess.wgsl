@@ -196,6 +196,15 @@ fn preprocess(
     let detInv = 1.0 / det;
     let conic = vec3<f32>(cov.z * detInv, -cov.y * detInv, cov.x * detInv);
 
+    // Compute eigenvalues of covariance
+    // TODO(aczw): change other max component to 0.1 just like in paper?
+    let mid = 0.5 * (cov.x + cov.z);
+    let lambda1: f32 = mid + sqrt(max(0.0, mid * mid - det));
+    let lambda2: f32 = mid - sqrt(max(0.0, mid * mid - det));
+
+    // Compute radius of gaussian. Round to the nearest pixel
+    let radius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
+
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
     splats[prevSize] = ndcPos;
 
