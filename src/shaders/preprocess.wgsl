@@ -23,8 +23,8 @@ struct CameraUniforms {
 };
 
 struct RenderSettings {
-    gaussian_scaling: f32,
-    sh_deg: f32,
+    scaling: f32,
+    shDeg: f32,
 }
 
 struct Gaussian {
@@ -41,7 +41,7 @@ struct Splat {
 @group(0) @binding(0) var<uniform> numPoints: u32;
 @group(0) @binding(1) var<uniform> camera: CameraUniforms;
 @group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
-@group(0) @binding(3) var<uniform> scaling: f32;
+@group(0) @binding(3) var<uniform> settings: RenderSettings;
 @group(0) @binding(4) var<storage, read> sh: array<f32>;
 
 @group(1) @binding(0) var<storage, read_write> splats: array<Splat>;
@@ -158,6 +158,7 @@ fn preprocess(
     let scale = exp(vec3<f32>(scaleA.x, scaleA.y, scaleB.x));
     
     // Construct scale matrix
+    let scaling = settings.scaling;
     var S = mat3x3<f32>();
     S[0][0] = scaling * scale.x;
     S[1][1] = scaling * scale.y;

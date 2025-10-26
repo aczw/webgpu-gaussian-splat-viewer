@@ -57,12 +57,12 @@ export default function get_renderer(
     GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE
   );
 
-  const scalingUniformBuffer = createBuffer(
+  const renderSettingsUniformBuffer = createBuffer(
     device,
-    "Gaussian scaling uniform buffer",
-    Float32Array.BYTES_PER_ELEMENT /* 4 */,
+    "Gaussian render settings uniform buffer",
+    2 * Float32Array.BYTES_PER_ELEMENT /* 8 */,
     GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
-    new Float32Array([1])
+    new Float32Array([1, pc.sh_deg])
   );
 
   // ===============================================
@@ -110,7 +110,7 @@ export default function get_renderer(
       { binding: 0, resource: { buffer: numPointsUniformBuffer } },
       { binding: 1, resource: { buffer: camera_buffer } },
       { binding: 2, resource: { buffer: pc.gaussian_3d_buffer } },
-      { binding: 3, resource: { buffer: scalingUniformBuffer } },
+      { binding: 3, resource: { buffer: renderSettingsUniformBuffer } },
       { binding: 4, resource: { buffer: pc.sh_buffer } },
     ],
   });
@@ -234,7 +234,7 @@ export default function get_renderer(
     entries: [
       { binding: 0, resource: { buffer: camera_buffer } },
       { binding: 1, resource: { buffer: splatsStorageBuffer } },
-      { binding: 2, resource: { buffer: scalingUniformBuffer } },
+      { binding: 2, resource: { buffer: renderSettingsUniformBuffer } },
     ],
   });
 
@@ -308,6 +308,10 @@ export default function get_renderer(
     },
     camera_buffer,
     updateScaling: (scaling) =>
-      device.queue.writeBuffer(scalingUniformBuffer, 0, new Float32Array([scaling])),
+      device.queue.writeBuffer(
+        renderSettingsUniformBuffer,
+        0,
+        new Float32Array([scaling, pc.sh_deg])
+      ),
   };
 }
