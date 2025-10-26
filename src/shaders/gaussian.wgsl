@@ -13,7 +13,8 @@ struct Splat {
 };
 
 struct VertexOutput {
-    @builtin(position) position: vec4<f32>
+    @builtin(position) position: vec4<f32>,
+    @location(0) size: vec2<f32>
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
@@ -41,11 +42,16 @@ fn vs_main(
 
     var out: VertexOutput;
     out.position = vec4<f32>(worldPos, 1.0);
+    out.size = size;
 
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(1.0);
+    let size = in.size;
+    let width = size.x + size.x;
+    let height = size.y + size.y;
+
+    return vec4<f32>(width, height, 0.0, 1.0);
 }

@@ -257,7 +257,7 @@ export default function get_renderer(
   // ===============================================
   return {
     frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
-      // Reset splat count to prepare for preprocess pass
+      encoder.clearBuffer(sorter.sort_dispatch_indirect_buffer, 0, 4);
       encoder.clearBuffer(sorter.sort_info_buffer, 0, 4);
       encoder.clearBuffer(splatsStorageBuffer);
 

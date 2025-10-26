@@ -129,7 +129,7 @@ fn preprocess(
     
     let viewPos = camera.view * vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
     let clipPos = camera.proj * viewPos;
-    let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;
+    let ndcPos: vec2<f32> = clipPos.xy / clipPos.w;
 
     // Frustum culling. Use a slightly bigger bounding box so we still draw splats on the edges
     if (ndcPos.x < -1.2 || ndcPos.x > 1.2 || ndcPos.y < -1.2 || ndcPos.y > 1.2) {
@@ -226,6 +226,16 @@ fn preprocess(
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
     splats[prevSize] = splat;
 
-    let keysPerDispatch = workgroupSize * sortKeyPerThread; 
-    // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
+    // TODO(aczw): remove modulo usage?
+    let keysPerDispatch = workgroupSize * sortKeyPerThread;
+    if ((prevSize + 1u) % keysPerDispatch == 0) {
+        atomicAdd(&sort_dispatch.dispatch_x, 1u);
+    }
+
+    sort_indices[prevSize] = prevSize;
+
+    // The original paper interprets the depth this way for the key:
+    // key |= *((uint32_t*)&depths[idx])
+    // This performs a direct bitcast on the depth value, so we do that here as well
+    sort_depths[prevSize] = bitcast<u32>(viewPos.z);
 }
