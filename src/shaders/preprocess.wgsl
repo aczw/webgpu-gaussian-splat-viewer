@@ -28,17 +28,22 @@ struct RenderSettings {
 }
 
 struct Gaussian {
-    pos_opacity: array<u32, 2>, // Combined together because each value is 16 bits
+    pos_opacity: array<u32, 2>,
     rot: array<u32, 2>,
     scale: array<u32, 2>
+};
+
+struct Splat {
+    center: vec2<f32>, /* In NDC coordinates */
+    radius: vec2<f32>, /* In NDC coordinates */
 };
 
 @group(0) @binding(0) var<uniform> numPoints: u32;
 @group(0) @binding(1) var<uniform> camera: CameraUniforms;
 @group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
-@group(0) @binding(3) var<uniform> gaussianScaling: f32;
+@group(0) @binding(3) var<uniform> scaling: f32;
 
-@group(1) @binding(0) var<storage, read_write> splats: array<vec3<f32>>;
+@group(1) @binding(0) var<storage, read_write> splats: array<Splat>;
 
 @group(2) @binding(0) var<storage, read_write> sort_infos: SortInfos;
 @group(2) @binding(1) var<storage, read_write> sort_depths : array<u32>;
@@ -118,14 +123,12 @@ fn preprocess(
     }
 
     let gaussian = gaussians[index];
+
     let posXY: vec2<f32> = unpack2x16float(gaussian.pos_opacity[0]);
     let posZopacity: vec2<f32> = unpack2x16float(gaussian.pos_opacity[1]);
     
-    // TODO(aczw): can also construct quads here, and store the radius in `splats`. This would
-    // allow the quad size to also change based on depth
-    let worldPos = vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
-    let t = camera.view * worldPos;
-    let clipPos = camera.proj * t;
+    let viewPos = camera.view * vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
+    let clipPos = camera.proj * viewPos;
     let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;
 
     // Frustum culling. Use a slightly bigger bounding box so we still draw splats on the edges
@@ -133,56 +136,67 @@ fn preprocess(
         return;
     }
 
-    // Unpack rotation and scale components
-    let rotRX: vec2<f32> = unpack2x16float(gaussian.rot[0]);
-    let rotYZ: vec2<f32> = unpack2x16float(gaussian.rot[1]);
-    let scaleXY: vec2<f32> = unpack2x16float(gaussian.scale[0]);
-    let scaleZW: vec2<f32> = unpack2x16float(gaussian.scale[1]);
-
-    // Construct quaternion and normalize just in case
-    let quat = normalize(vec4<f32>(rotRX.x, rotRX.y, rotYZ.x, rotYZ.y));
+    // Construct quaternion and normalize
+    let rotationA: vec2<f32> = unpack2x16float(gaussian.rot[0]);
+    let rotationB: vec2<f32> = unpack2x16float(gaussian.rot[1]);
+    let quat = vec4<f32>(rotationA.x, rotationA.y, rotationB.x, rotationB.y);
+    
+    // Construct rotation matrix
     let r = quat.x;
     let x = quat.y;
     let y = quat.z;
     let z = quat.w;
-
-    let rot = mat3x3<f32>(
+    let R = mat3x3<f32>(
         1.0 - 2.0 * (y * y + z * z), 2.0 * (x * y - r * z), 2.0 * (x * z + r * y),
         2.0 * (x * y + r * z), 1.0 - 2.0 * (x * x + z * z), 2.0 * (y * z - r * x),
         2.0 * (x * z - r * y), 2.0 * (y * z + r * x), 1.0 - 2.0 * (x * x + y * y)
     );
     
-    var scale = mat3x3<f32>();
-    scale[0][0] = gaussianScaling * scaleXY.x;
-    scale[1][1] = gaussianScaling * scaleXY.y;
-    scale[2][2] = gaussianScaling * scaleZW.x;
+    let scaleA: vec2<f32> = unpack2x16float(gaussian.scale[0]);
+    let scaleB: vec2<f32> = unpack2x16float(gaussian.scale[1]);
+    let scale = exp(vec3<f32>(scaleA.x, scaleA.y, scaleB.x));
+    
+    // Construct scale matrix
+    var S = mat3x3<f32>();
+    S[0][0] = scaling * scale.x;
+    S[1][1] = scaling * scale.y;
+    S[2][2] = scaling * scale.z;
 
     // Compute 3D covariance
-    let m = scale * rot;
-    let cov3d: mat3x3<f32> = transpose(m) * m;
+    let M = S * R;
+    let sigma: mat3x3<f32> = transpose(M) * M;
+
+    // Covariance is symmetric, so we only store unique values
+    let cov3d = array<f32, 6>(
+        sigma[0][0], sigma[0][1], sigma[0][2],
+        sigma[1][1], sigma[1][2], sigma[2][2]
+    );
 
     let focal: vec2<f32> = camera.focal;
-    let jacobian = mat3x3<f32>(
+    let t: vec3<f32> = viewPos.xyz;
+    let J = mat3x3<f32>(
         focal.x / t.z, 0.0, -(focal.x * t.x) / (t.z * t.z),
 		0.0, focal.y / t.z, -(focal.y * t.y) / (t.z * t.z),
 		0.0, 0.0, 0.0
     );
 
-    let view: mat4x4<f32> = camera.view;
-    let w = mat3x3<f32>(
-        view[0][0], view[1][0], view[2][0],
-        view[0][1], view[1][1], view[2][1],
-        view[0][2], view[1][2], view[2][2],
+    let W = transpose(
+        mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz)
+    );
+
+    let vrk = mat3x3<f32>(
+        cov3d[0], cov3d[1], cov3d[2],
+        cov3d[1], cov3d[3], cov3d[4],
+        cov3d[2], cov3d[4], cov3d[5]
     );
 
     // Compute 2D covariance
-    let wj: mat3x3<f32> = w * jacobian;
-    var cov2d: mat3x3<f32> = transpose(wj) * transpose(cov3d) * wj;
-
+    let T: mat3x3<f32> = W * J;
+    var cov2d: mat3x3<f32> = transpose(T) * transpose(vrk) * T;
     cov2d[0][0] += 0.3;
     cov2d[1][1] += 0.3;
 
-    // Covariance is symmetrial, so we can just store diagonal once
+    // Covariance is symmetrical, so we can just store diagonal once
     let cov = vec3<f32>(cov2d[0][0], cov2d[0][1], cov2d[1][1]);
 
     // Determinant
@@ -197,16 +211,20 @@ fn preprocess(
     let conic = vec3<f32>(cov.z * detInv, -cov.y * detInv, cov.x * detInv);
 
     // Compute eigenvalues of covariance
-    // TODO(aczw): change other max component to 0.1 just like in paper?
     let mid = 0.5 * (cov.x + cov.z);
-    let lambda1: f32 = mid + sqrt(max(0.0, mid * mid - det));
-    let lambda2: f32 = mid - sqrt(max(0.0, mid * mid - det));
+    let lambda1: f32 = mid + sqrt(max(0.1, mid * mid - det));
+    let lambda2: f32 = mid - sqrt(max(0.1, mid * mid - det));
 
-    // Compute radius of gaussian. Round to the nearest pixel
-    let radius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
+    // Compute radius of gaussian. Round to the nearest pixel because we're in pixel space
+    let pixelRadius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
+    let radius = vec2<f32>(pixelRadius) / camera.viewport;
+
+    var splat: Splat;
+    splat.center = ndcPos.xy;
+    splat.radius = radius;
 
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
-    splats[prevSize] = ndcPos;
+    splats[prevSize] = splat;
 
     let keysPerDispatch = workgroupSize * sortKeyPerThread; 
     // increment DispatchIndirect.dispatchx each time you reach limit for one dispatch of keys
