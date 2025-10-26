@@ -124,7 +124,8 @@ fn preprocess(
     // TODO(aczw): can also construct quads here, and store the radius in `splats`. This would
     // allow the quad size to also change based on depth
     let worldPos = vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
-    let clipPos = camera.proj * camera.view * worldPos;
+    let t = camera.view * worldPos;
+    let clipPos = camera.proj * t;
     let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;
 
     // Frustum culling. Use a slightly bigger bounding box so we still draw splats on the edges
@@ -158,7 +159,25 @@ fn preprocess(
 
     // Compute 3D covariance
     let m = scale * rot;
-    let sigma: mat3x3<f32> = transpose(m) * m;
+    let cov3d: mat3x3<f32> = transpose(m) * m;
+
+    let focal: vec2<f32> = camera.focal;
+    let jacobian = mat3x3<f32>(
+        focal.x / t.z, 0.0, -(focal.x * t.x) / (t.z * t.z),
+		0.0, focal.y / t.z, -(focal.y * t.y) / (t.z * t.z),
+		0.0, 0.0, 0.0
+    );
+
+    let view: mat4x4<f32> = camera.view;
+    let w = mat3x3<f32>(
+        view[0][0], view[1][0], view[2][0],
+        view[0][1], view[1][1], view[2][1],
+        view[0][2], view[1][2], view[2][2],
+    );
+
+    // Compute 2D covariance
+    let wj: mat3x3<f32> = w * jacobian;
+    let cov2d: mat3x3<f32> = transpose(wj) * transpose(cov3d) * wj;
 
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
     splats[prevSize] = ndcPos;
