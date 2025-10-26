@@ -24,7 +24,7 @@ struct CameraUniforms {
 
 struct RenderSettings {
     scaling: f32,
-    shDeg: f32,
+    shDeg: u32,
 }
 
 struct Gaussian {
@@ -36,13 +36,14 @@ struct Gaussian {
 struct Splat {
     center: vec2<f32>, /* In NDC coordinates */
     radius: vec2<f32>, /* In NDC coordinates */
+    color: vec3<f32>,
 };
 
 @group(0) @binding(0) var<uniform> numPoints: u32;
 @group(0) @binding(1) var<uniform> camera: CameraUniforms;
 @group(0) @binding(2) var<storage, read> gaussians: array<Gaussian>;
 @group(0) @binding(3) var<uniform> settings: RenderSettings;
-@group(0) @binding(4) var<storage, read> sh: array<f32>;
+@group(0) @binding(4) var<storage, read> shCoefficients: array<u32>;
 
 @group(1) @binding(0) var<storage, read_write> splats: array<Splat>;
 
@@ -73,10 +74,41 @@ const SH_C3 = array<f32, 7>(
 override workgroupSize: u32;
 override sortKeyPerThread: u32;
 
-/// reads the ith sh coef from the storage buffer 
+// Reads the nth SH coefficient from the storage buffer.
+//
+// Each vertex has up to 16 coefficients, each with 3 channels (RGB). Each channel
+// is 16 bits = 2 bytes. This means each vertex takes up 16 * 3 * 2 = 96 bytes.
+// We're reading the storage buffer as f32s, which takes up 4 bytes each.
+//
+// Therefore each vertex is strided by 96 / 4 = 24 elements.
 fn sh_coef(splat_idx: u32, c_idx: u32) -> vec3<f32> {
-    //TODO: access your binded sh_coeff, see load.ts for how it is stored
-    return vec3<f32>(0.0);
+    let offsetIdx: u32 = splat_idx * 24u;
+
+    // Load all the coefficients
+    // TODO(aczw): is this faster than finding the right offset (will need modulo?)
+    // TODO(aczw): precompute the `coefficients` array once for the vertex and reuse it in here
+    var coefficients: array<vec3<f32>, 16>;
+    var coeffIdx = 0u;
+
+    for (var currElt = offsetIdx; currElt < offsetIdx + 24u; currElt += 3u) {
+        let eltA = shCoefficients[currElt];
+        let eltB = shCoefficients[currElt + 1u];
+        let eltC = shCoefficients[currElt + 2u];
+        
+        let eltASplit: vec2<f32> = unpack2x16float(eltA);
+        let eltBSplit: vec2<f32> = unpack2x16float(eltB);
+        let eltCSplit: vec2<f32> = unpack2x16float(eltC);
+
+        let coeffA = vec3<f32>(eltASplit.x, eltASplit.y, eltBSplit.x);
+        let coeffB = vec3<f32>(eltBSplit.y, eltCSplit.x, eltCSplit.y);
+
+        coefficients[coeffIdx] = coeffA;
+        coefficients[coeffIdx + 1u] = coeffB;
+
+        coeffIdx += 2u;
+    }
+
+    return coefficients[c_idx];
 }
 
 // spherical harmonics evaluation with Condon–Shortley phase
@@ -128,7 +160,8 @@ fn preprocess(
     let posXY: vec2<f32> = unpack2x16float(gaussian.pos_opacity[0]);
     let posZopacity: vec2<f32> = unpack2x16float(gaussian.pos_opacity[1]);
     
-    let viewPos = camera.view * vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
+    let worldPos = vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
+    let viewPos = camera.view * worldPos;
     let clipPos = camera.proj * viewPos;
     let ndcPos: vec2<f32> = clipPos.xy / clipPos.w;
 
@@ -221,9 +254,14 @@ fn preprocess(
     let pixelRadius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
     let radius = vec2<f32>(pixelRadius) / camera.viewport;
 
+    // TODO(aczw): flip direction?
+    let direction = normalize(viewPos.xyz);
+    let color: vec3<f32> = computeColorFromSH(direction, index, settings.shDeg);
+
     var splat: Splat;
     splat.center = ndcPos.xy;
     splat.radius = radius;
+    splat.color = color;
 
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
     splats[prevSize] = splat;
@@ -239,5 +277,6 @@ fn preprocess(
     // The original paper interprets the depth this way for the key:
     // key |= *((uint32_t*)&depths[idx])
     // This performs a direct bitcast on the depth value, so we do that here as well
+    // TODO(aczw): which way should we store the depth? Invert by subtracting by far plane?
     sort_depths[prevSize] = bitcast<u32>(viewPos.z);
 }
