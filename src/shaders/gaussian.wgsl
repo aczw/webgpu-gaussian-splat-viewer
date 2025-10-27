@@ -24,6 +24,7 @@ struct VertexOutput {
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<storage, read> splats: array<Splat>;
 @group(0) @binding(2) var<uniform> scaling: f32;
+@group(0) @binding(3) var<storage, read> sortIndices: array<u32>;
 
 const MIN_OPACITY: f32 = 1.0 / 255.0;
 
@@ -32,7 +33,8 @@ fn vs_main(
     @builtin(vertex_index) vertIdx: u32,
     @builtin(instance_index) instIdx: u32 /* Easy access to the number of splats to draw */
 ) -> VertexOutput {
-    let splat: Splat = splats[instIdx];
+    let index = sortIndices[instIdx];
+    let splat: Splat = splats[index];
 
     // Create the six possible vertex positions in NDC space
     // TODO(aczw): surely there has to be a better way to do this
@@ -43,11 +45,11 @@ fn vs_main(
     );
 
     // Translate to "world space" NDC position from "local space" (centered at origin)
-    let localPos: vec2<f32> = positions[vertIdx] * scaling;
-    let worldPos = vec3<f32>(localPos + splat.center, 0.0);
+    let localNdcPos: vec2<f32> = positions[vertIdx] * scaling;
+    let worldNdcPos = vec2<f32>(localNdcPos + splat.center);
 
     var out: VertexOutput;
-    out.position = vec4<f32>(worldPos, 1.0);
+    out.position = vec4<f32>(worldNdcPos, 0.0, 1.0);
     out.color = splat.color;
     out.center = splat.center;
     out.conicOpacity = splat.conicOpacity;

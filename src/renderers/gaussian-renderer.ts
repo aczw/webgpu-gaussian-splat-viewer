@@ -226,6 +226,12 @@ export default function get_renderer(
         visibility: GPUShaderStage.VERTEX,
         buffer: { type: "uniform" },
       },
+      {
+        // Sort indices storage buffer
+        binding: 3,
+        visibility: GPUShaderStage.VERTEX,
+        buffer: { type: "read-only-storage" },
+      },
     ],
   });
   const constantsBg = device.createBindGroup({
@@ -235,6 +241,7 @@ export default function get_renderer(
       { binding: 0, resource: { buffer: camera_buffer } },
       { binding: 1, resource: { buffer: splatsStorageBuffer } },
       { binding: 2, resource: { buffer: renderSettingsUniformBuffer } },
+      { binding: 3, resource: { buffer: sorter.ping_pong[0].sort_indices_buffer } },
     ],
   });
 

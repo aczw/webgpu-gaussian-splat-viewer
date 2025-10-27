@@ -216,9 +216,7 @@ fn preprocess(
 		0.0, 0.0, 0.0
     );
 
-    let W = transpose(
-        mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz)
-    );
+    let W = transpose(mat3x3<f32>(camera.view[0].xyz, camera.view[1].xyz, camera.view[2].xyz));
 
     let vrk = mat3x3<f32>(
         cov3d[0], cov3d[1], cov3d[2],
@@ -255,7 +253,6 @@ fn preprocess(
     let pixelRadius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
     let radius = vec2<f32>(pixelRadius) / camera.viewport;
 
-    // TODO(aczw): flip direction?
     let direction = normalize(viewPos.xyz);
     let color: vec3<f32> = computeColorFromSH(direction, index, settings.shDeg);
 
@@ -277,8 +274,10 @@ fn preprocess(
     sort_indices[prevSize] = prevSize;
 
     // The original paper interprets the depth this way for the key:
+    //
     // key |= *((uint32_t*)&depths[idx])
-    // This performs a direct bitcast on the depth value, so we do that here as well
-    // TODO(aczw): which way should we store the depth? Invert by subtracting by far plane?
-    sort_depths[prevSize] = bitcast<u32>(viewPos.z);
+    //
+    // This performs a direct bit cast on the depth value, so we do that here as well. Also,
+    // we invert the depth by subtracting from the camera far plane, hardcoded here.
+    sort_depths[prevSize] = bitcast<u32>(100.0 - viewPos.z);
 }
