@@ -36,6 +36,7 @@ struct Gaussian {
 struct Splat {
     center: vec2<f32>, /* In NDC coordinates */
     radius: vec2<f32>, /* In NDC coordinates */
+    conicOpacity: vec4<f32>,
     color: vec3<f32>,
 };
 
@@ -261,6 +262,7 @@ fn preprocess(
     var splat: Splat;
     splat.center = ndcPos.xy;
     splat.radius = radius;
+    splat.conicOpacity = vec4<f32>(conic, posZopacity.y);
     splat.color = color;
 
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
