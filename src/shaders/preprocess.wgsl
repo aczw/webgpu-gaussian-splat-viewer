@@ -262,7 +262,7 @@ fn preprocess(
     var splat: Splat;
     splat.center = ndcPos.xy;
     splat.radius = radius;
-    splat.conicOpacity = vec4<f32>(conic, posZopacity.y);
+    splat.conicOpacity = vec4<f32>(conic, 1.0 / (1.0 + exp(-posZopacity.y)));
     splat.color = color;
 
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);

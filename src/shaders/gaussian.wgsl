@@ -55,6 +55,7 @@ fn vs_main(
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let offset: vec2<f32> = max(vec2<f32>(), in.position.xy - in.pixelCenter);
+    let position = camera.viewport - in.position.xy;
+    let offset: vec2<f32> = max(vec2<f32>(), position - in.pixelCenter);
     return vec4<f32>(offset, 0.0, 1.0);
 }
