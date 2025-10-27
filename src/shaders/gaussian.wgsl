@@ -17,13 +17,15 @@ struct Splat {
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) color: vec3<f32>,
-    @location(1) pixelCenter: vec2<f32>,
-    @location(2) size: vec2<f32>,
+    @location(1) center: vec2<f32>,
+    @location(2) conicOpacity: vec4<f32>,
 };
 
 @group(0) @binding(0) var<uniform> camera: CameraUniforms;
 @group(0) @binding(1) var<storage, read> splats: array<Splat>;
 @group(0) @binding(2) var<uniform> scaling: f32;
+
+const MIN_OPACITY: f32 = 1.0 / 255.0;
 
 @vertex
 fn vs_main(
@@ -47,15 +49,34 @@ fn vs_main(
     var out: VertexOutput;
     out.position = vec4<f32>(worldPos, 1.0);
     out.color = splat.color;
-    out.pixelCenter = splat.center * camera.viewport;
-    out.size = size * 2.0;
+    out.center = splat.center;
+    out.conicOpacity = splat.conicOpacity;
 
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    let position = camera.viewport - in.position.xy;
-    let offset: vec2<f32> = max(vec2<f32>(), position - in.pixelCenter);
-    return vec4<f32>(offset, 0.0, 1.0);
+    var ndcPosition = (in.position.xy / camera.viewport) * 2.0 - 1.0;
+    ndcPosition.y *= -1.0; // @builtin(position) flips y-coord of framebuffer
+
+    // Find offset from splat center, flip X, and convert to pixel space
+    var d = ndcPosition - in.center;
+    d.x *= -1.0;
+    d *= camera.viewport * 0.5;
+
+    let con: vec3<f32> = in.conicOpacity.xyz;
+    let power = -0.5 * (con.x * d.x * d.x + con.z * d.y * d.y) - con.y * d.x * d.y;
+
+    if (power > 0.0) {
+        return vec4<f32>();
+    }
+    
+    let alpha = min(0.99, in.conicOpacity.w * exp(power));
+
+    if (alpha < MIN_OPACITY) {
+        return vec4<f32>();
+    }
+
+    return vec4<f32>(in.color, 1.0) * alpha;
 }
