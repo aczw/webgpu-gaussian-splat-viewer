@@ -72,13 +72,17 @@ export default async function init(
       expanded: true,
     });
 
-    stats.addMonitor(params, "fps", { label: "FPS", interval: 50 });
+    stats.addMonitor(params, "fps", {
+      label: "FPS",
+      interval: 50,
+      format: (fps) => `${fps.toFixed(2)} (${fps === 0 ? 0 : (1000 / fps).toFixed(2)} ms)`,
+    });
 
     if (canTimestamp) {
       stats.addMonitor(params, "renderTime", {
         label: "Render time",
         interval: 50,
-        format: (time) => `${time} µs`,
+        format: (time) => `${time.toFixed(2)} µs`,
       });
     }
   }
@@ -226,7 +230,7 @@ export default async function init(
       if (canTimestamp && perf.resultBuffer.mapState === "unmapped") {
         perf.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
           const times = new BigInt64Array(perf.resultBuffer.getMappedRange());
-          params["Render time"] = Number(times[1] - times[0]) / 1000;
+          params.renderTime = Number(times[1] - times[0]) / 1000;
           perf.resultBuffer.unmap();
         });
       }
