@@ -164,10 +164,12 @@ fn preprocess(
     let worldPos = vec4<f32>(posXY.x, posXY.y, posZopacity.x, 1.0);
     let viewPos = camera.view * worldPos;
     let clipPos = camera.proj * viewPos;
-    let ndcPos: vec2<f32> = clipPos.xy / clipPos.w;
+    let ndcPos: vec3<f32> = clipPos.xyz / clipPos.w;
 
     // Frustum culling. Use a slightly bigger bounding box so we still draw splats on the edges
-    if (ndcPos.x < -1.2 || ndcPos.x > 1.2 || ndcPos.y < -1.2 || ndcPos.y > 1.2) {
+    if (ndcPos.x < -1.2 || ndcPos.x > 1.2 ||
+        ndcPos.y < -1.2 || ndcPos.y > 1.2 ||
+        ndcPos.z < -1.0 || ndcPos.z > 1.0) {
         return;
     }
 
@@ -267,7 +269,7 @@ fn preprocess(
 
     // TODO(aczw): remove modulo usage?
     let keysPerDispatch = workgroupSize * sortKeyPerThread;
-    if ((prevSize + 1u) % keysPerDispatch == 0) {
+    if (prevSize % keysPerDispatch == 0) {
         atomicAdd(&sort_dispatch.dispatch_x, 1u);
     }
 
