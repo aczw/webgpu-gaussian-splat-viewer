@@ -42,15 +42,33 @@ To draw a single frame, we perform three main steps.
 2. Radix sort compute shader pass
 3. Splat data render pass
 
-Below I go into more detail about each step.
-
 ### Preprocess compute pass
 
 The preprocessing performs three major tasks. First, it ingests the raw gaussian data and computes necessary information used during rasterization. Second, we store some additional data in buffers to be used in the sorting pass. Third, we perform view frustum culling to reduce the number of computations and splats we'll need to draw in the end.
 
+To rasterize each splat, we project the gaussian data in world space into 2D splat data. Information we need includes the splat center, radius from the center, conic, opacity, and color of the splat. We will use this information to shade each fragment of this splat.
+
+For additional performance, we should cull splats that lie outside of the view frustum. This means that the number of points that enter the preprocess step may not equal the number of splats that we end up sorting and drawing.
+
+Of note is that I use a slightly bigger bounding box for culling than the view frustum. For example, given normalized device coordinates, I check whether the splat center is between -1.2 and 1.2. This allows splats on the edge of the screen to still show up on screen.
+
 ### Sorting the splats
 
+Alpha blending depends on the order we draw the splats, so have to sort them in order of view space depth. To do this, we associate each splat with a key that combines its index and its position's Z value in view space. We wrote these values into separate buffers that were populated during preprocessing.
+
 ### Rasterization
+
+The render pass performs an indirect draw call that uses instanced rendering to draw quads for each splat within the view frustum. Between the preprocess step and render step, we update the instance count used for the draw call based on how many splats were culled.
+
+Since the splats were sorted, we can use the instance index, provided via `@builtin(instance_index)` in the vertex shader, and use that to index into our global splat data buffer. Because of this, we guarantee that the splats are rendered back to front, enabling correct handling of transparency.
+
+| ![](images/bonsai_no_opacity_falloff.png) | ![](images/bicycle_no_opacity_falloff.png) |
+| :---------------------------------------: | :----------------------------------------: |
+|        Bonsai, no opacity falloff         |        Bicycle, no opacity falloff         |
+
+In the pictures above, we've correctly drawn the splat quads and colored them, but we haven't considered the exponential opacity falloff the further we get from the splat center.
+
+Gaussians inherently model a distribution, so you may be wondering how we determine the radius for each splat. In my implementation, I consider the "cutoff" to be three standard deviations from the mean, which is the gaussian world position, aka the splat center. By the [68-95-99.7 rule](https://en.wikipedia.org/wiki/68%E2%80%9395%E2%80%9399.7_rule), we can think of this as covering 99.7% of the gaussian area.
 
 ## Performance analysis
 
@@ -91,6 +109,14 @@ All of these differences make a meaningful impact on the render time. Here's a t
 > Does view-frustum culling give performance improvement? Why do you think this is?
 
 > Does number of guassians affect performance? Why do you think this is?
+
+## Bloopers
+
+You do one thing wrong, and everything breaks. Here are two examples of this happening.
+
+| ![](images/blooper_wrong_sort_index.png) | ![](images/blooper_no_flip_z.png) |
+| :--------------------------------------: | :-------------------------------: |
+|   Associated wrong sort key with splat   |  Did not flip depth for sorting   |
 
 ## Credits
 
