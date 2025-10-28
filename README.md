@@ -24,11 +24,11 @@ https://github.com/user-attachments/assets/a519f247-0154-4d76-97e9-85a9719e21f0
 
 ## Overview
 
-This project aims to implement the [3D Gaussian Splatting for Real-Time Radiance Field Rendering](https://github.com/graphdeco-inria/gaussian-splatting) paper in WebGPU. It specifically focuses on the rasterization pipeline of the splats, meaning I did not concern myself with the training portion or creation of these gaussians.
+This project aims to implement the [3D Gaussian Splatting for Real-Time Radiance Field Rendering](https://github.com/graphdeco-inria/gaussian-splatting) paper in WebGPU. It specifically focuses on the rasterization pipeline of the splats, meaning I did not concern myself with the training or creation of these gaussians.
 
 I heavily referenced the original paper's rasterization engine, available at [graphdeco-inria/diff-gaussian-rasterization](https://github.com/graphdeco-inria/diff-gaussian-rasterization), for this project. It is written in C++ and CUDA; notably, it does not use a graphics API, meaning my implementation could not be a 1:1 translation.
 
-The end result is an online viewer to load (theoretically) any gaussian splatting scene given the PLY file and at least one camera. For instance, let's grab the banana PLY file linked in the [OpenSplat](https://github.com/pierotofy/opensplat) README and try viewing it:
+The end result is an online viewer to load (theoretically) any gaussian splatting scene given the PLY file and at least one camera. For instance, let's grab the banana PLY file linked in the [OpenSplat](https://github.com/pierotofy/opensplat) README and view it:
 
 | ![](images/banana.png) |
 | :--------------------: |
@@ -106,9 +106,30 @@ All of these differences make a meaningful impact on the render time. Here's a t
 
 > For gaussian renderer, how does changing the workgroup-size affect performance? Why do you think this is?
 
+Increasing the workgroup size may offer performance improvements with respect to memory operations. By allowing more threads in a block to access memory, the effects of memory coalescing can increase, decreasing the overall preprocess compute time.
+
+However, I can also see smaller workgroups working out in our favor, especially if we're culling many splats. A smaller workgroup means more warps can return early if all of its threads were culled, and this could increase operational throughput.
+
 > Does view-frustum culling give performance improvement? Why do you think this is?
 
-> Does number of guassians affect performance? Why do you think this is?
+Yes, view frustum culling provides enormous performance benefits that ripples throughout our gaussian renderer. It means we have to sort less splats in the radix sort pass, we send less vertices to the render pipeline, and we perform less shading computations overall.
+
+![](images/frustum_culling.png)
+
+For instance, the bicycle scene has 1,063,091 points. Rendering the camera view seen above with frustum culling, the actual number of instances we draw is 604,488 quads. This is a significant reduction that makes a difference in both pipelines:
+
+| Configuration        | Preprocess time (ms) | Render time (ms) |
+| :------------------- | :------------------: | :--------------: |
+| No frustum culling   |         1.13         |      0.736       |
+| With frustum culling |        0.754         |      0.682       |
+
+Projecting the gaussians to screen space is very expensive, so it makes sense we see more of a performance gain in the preprocessing step than the rendering part. Of course, the effects become more pronounced the more splats we're able to cull.
+
+> Does number of gaussians affect performance? Why do you think this is?
+
+Yes, increasing the number of gaussians also increases the preprocessing and rendering time. For reasons already covered above, every additional splat means more GPU time spent on 3D to 2D projection, sorting, the drawing of vertices, and the shading of fragments.
+
+For the preprocess step, increasing the workgroup size here would potentially help as we need to launch more workgroups. We are also forced to allocate memory for all our buffers, including the sorting data and splat data. This can slow down memory operations as accesses become more strided and spread out.
 
 ## Bloopers
 
@@ -120,9 +141,8 @@ You do one thing wrong, and everything breaks. Here are two examples of this hap
 
 ## Credits
 
-- [Vite](https://vitejs.dev/)
-- [tweakpane](https://tweakpane.github.io/docs//v3/monitor-bindings/)
-- [stats.js](https://github.com/mrdoob/stats.js)
+- [Vite](https://vite.dev/)
+- [Tweakpane](https://tweakpane.github.io/docs/v3/)
 - [wgpu-matrix](https://github.com/greggman/wgpu-matrix)
 - Special thanks to Shrek Shao (from the Google WebGPU team) and the original [differential gaussian rasterizer](https://github.com/graphdeco-inria/diff-gaussian-rasterization) implementation
 - [CIS 5650](https://cis5650-fall-2025.github.io) for providing the base code, including PLY scene loading, much of the point cloud renderer, and the radix sort compute pass.
