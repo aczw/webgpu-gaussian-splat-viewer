@@ -292,8 +292,13 @@ export default function get_renderer(
       encoder.clearBuffer(splatsStorageBuffer);
 
       {
+        const perf = perfs[1];
+
         const preprocessPass = encoder.beginComputePass({
           label: "Gaussian preprocess compute pass",
+          timestampWrites: perf
+            ? { querySet: perf.querySet, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 }
+            : undefined,
         });
 
         preprocessPass.setPipeline(preprocessPipeline);
@@ -303,6 +308,19 @@ export default function get_renderer(
         preprocessPass.dispatchWorkgroups(Math.ceil(pc.num_points / C.histogram_wg_size));
 
         preprocessPass.end();
+
+        if (perf) {
+          encoder.resolveQuerySet(perf.querySet, 0, perf.querySet.count, perf.resolveBuffer, 0);
+          if (perf.resultBuffer.mapState === "unmapped") {
+            encoder.copyBufferToBuffer(
+              perf.resolveBuffer,
+              0,
+              perf.resultBuffer,
+              0,
+              perf.resultBuffer.size
+            );
+          }
+        }
       }
 
       // Use updated splat count for instance count in indirect drawing

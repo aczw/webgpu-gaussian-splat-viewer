@@ -1,4 +1,4 @@
-import { Pane } from "tweakpane";
+import { type MonitorBindingApi, Pane } from "tweakpane";
 import * as TweakpaneFileImportPlugin from "tweakpane-plugin-file-import";
 
 import { load } from "../utils/load";
@@ -65,8 +65,10 @@ export default async function init(
   new CameraControl(camera);
 
   const observer = new ResizeObserver(() => {
-    canvas.width = canvas.clientWidth;
-    canvas.height = canvas.clientHeight;
+    const dpr = window.devicePixelRatio;
+
+    canvas.width = canvas.clientWidth * dpr;
+    canvas.height = canvas.clientHeight * dpr;
 
     camera.on_update_canvas();
   });
@@ -82,6 +84,7 @@ export default async function init(
   const params = {
     fps: 0.0,
     renderTime: 0.0,
+    preprocessTime: 0.0,
     splatSize: 1,
     renderer: "gaussian",
     plyFile: "",
@@ -93,6 +96,8 @@ export default async function init(
   });
 
   pane.registerPlugin(TweakpaneFileImportPlugin);
+
+  let preprocessPane: MonitorBindingApi<number> | null = null;
 
   {
     const stats = pane.addFolder({
@@ -107,8 +112,18 @@ export default async function init(
     });
 
     if (canTimestamp) {
+      preprocessPane = stats.addMonitor(params, "preprocessTime", {
+        label: "Preprocess",
+        interval: 50,
+        format: (time) => `${time.toFixed(2)} µs`,
+      });
+
+      preprocessPane.hidden = params.renderer === "pointcloud";
+    }
+
+    if (canTimestamp) {
       stats.addMonitor(params, "renderTime", {
-        label: "Render time",
+        label: "Render",
         interval: 50,
         format: (time) => `${time.toFixed(2)} µs`,
       });
@@ -192,6 +207,7 @@ export default async function init(
       })
       .on("change", (e) => {
         renderer = renderers[e.value];
+        if (preprocessPane) preprocessPane.hidden = e.value === "pointcloud";
       });
 
     render
@@ -239,12 +255,22 @@ export default async function init(
 
       device.queue.submit([encoder.finish()]);
 
-      if (canTimestamp && renderPerf.resultBuffer.mapState === "unmapped") {
-        renderPerf.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
-          const times = new BigInt64Array(renderPerf.resultBuffer.getMappedRange());
-          params.renderTime = Number(times[1] - times[0]) / 1000;
-          renderPerf.resultBuffer.unmap();
-        });
+      if (canTimestamp) {
+        if (renderPerf.resultBuffer.mapState === "unmapped") {
+          renderPerf.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
+            const times = new BigInt64Array(renderPerf.resultBuffer.getMappedRange());
+            params.renderTime = Number(times[1] - times[0]) / 1000;
+            renderPerf.resultBuffer.unmap();
+          });
+        }
+
+        if (preprocessPerf.resultBuffer.mapState === "unmapped") {
+          preprocessPerf.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
+            const times = new BigInt64Array(preprocessPerf.resultBuffer.getMappedRange());
+            params.preprocessTime = Number(times[1] - times[0]) / 1000;
+            preprocessPerf.resultBuffer.unmap();
+          });
+        }
       }
     }
 
