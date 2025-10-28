@@ -97,7 +97,7 @@ export default async function init(
     splatSize: 1,
   };
 
-  const pane = new Pane({ expanded: true });
+  const pane = new Pane({ title: "WebGPU 3D Gaussian Splat Viewer", expanded: true });
   pane.registerPlugin(TweakpaneFileImportPlugin);
 
   let preprocessPane: MonitorBindingApi<number> | null = null;
