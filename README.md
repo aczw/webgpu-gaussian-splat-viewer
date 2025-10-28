@@ -17,7 +17,9 @@
 
 ## Demo
 
-A live version of this project is available at [aczw.github.io/webgpu-gaussian-splat-viewer](https://aczw.github.io/webgpu-gaussian-splat-viewer). Note that you'll have to provide your own scene and camera file.
+A live version of this project is available at [aczw.github.io/webgpu-gaussian-splat-viewer](https://aczw.github.io/webgpu-gaussian-splat-viewer). Note that you'll have to provide your own scene and camera file. Below is a screen recording of the viewer in action.
+
+https://github.com/user-attachments/assets/a519f247-0154-4d76-97e9-85a9719e21f0
 
 ### Credits
 
