@@ -8,12 +8,13 @@
   - Ryzen 5 7600X @ 4.7Ghz
   - 32 GB RAM
   - RTX 5060 Ti 16 GB (Studio Driver 581.29)
+  - Chromium 140.0.7339.128
 
 # WebGPU Gaussian Splat Viewer
 
 | [![](images/preview.png)](https://aczw.github.io/webgpu-gaussian-splat-viewer) |
 | :----------------------------------------------------------------------------: |
-|                      Bicycle scene, rendered at 1920×1080                      |
+|                            Bicycle scene, 1920×1080                            |
 
 ## Demo
 
@@ -29,9 +30,9 @@ I heavily referenced the original paper's rasterization engine, available at [gr
 
 The end result is an online viewer to load (theoretically) any gaussian splatting scene given the PLY file and at least one camera. For instance, let's grab the banana PLY file linked in the [OpenSplat](https://github.com/pierotofy/opensplat) README and try viewing it:
 
-|    ![](images/banana.png)     |
-| :---------------------------: |
-| Banana, rendered at 1920×1080 |
+| ![](images/banana.png) |
+| :--------------------: |
+|   Banana, 1920×1080    |
 
 ## Implementation
 
@@ -53,9 +54,37 @@ The preprocessing performs three major tasks. First, it ingests the raw gaussian
 
 ## Performance analysis
 
+To benchmark my implementation, I followed this article on [WebGPU Timing Performance](https://webgpufundamentals.org/webgpu/lessons/webgpu-timing.html#a-timestamp-query) from webgpufundamentals. WebGPU has an optional `timestamp-query` feature that allows us to check how long a GPU operation takes.
+
+For my point cloud renderer, I timestamp the render pass. For my gaussian renderer, I timestamp both my render pass and my preprocess compute pass. I display both metrics in the Tweakpane when available.
+
+> Note that `timestamp-query` is implementation-defined, meaning a different combination of browsers and GPU vendors may result in different metrics. For my tests I obviously stuck to the same devices, so the following results are still meaningful.
+
+I use the timestamp query to measure my performance because Chromium caps the frame rate of the scene to your monitor's refresh rate. In my case, my scenes were consistently being capped, so I could not use this to accurately measure things.
+
+If not specified, assume all the scenes are rendered at 1920×1080.
+
 ### Questions
 
 > Compare your results from point-cloud and gaussian renderer, what are the differences?
+
+The first obvious difference is how the gaussian splatting scene is rendered.
+
+| ![](images/bonsai_point.png) | ![](images/bonsai_gaussian.png) |
+| :--------------------------: | :-----------------------------: |
+|    Point cloud, 1920×1080    |       Gaussian, 1920×1080       |
+
+Using the point cloud method, each splat is assigned a singular point of the same width. While in theory I could assign each point its associated color from the scene, this renderer was mostly for testing purposes and I moved on quickly. The gaussian renderer actually uses the gaussian data and performs the critical work of projecting the 3D data into 2D screen space, meaning each splat takes up a meaningful (and different) amount of screen space.
+
+Implementation-wise, both renderers also very different. The point cloud renderer utilizes the GPU's native ability to draw point primitives. On the other hand, the gaussian renderer draws a quad made up of two triangles to render each splat, and uses the `triangle-list` primitive instead. It also has to perform additional work in the fragment shader to compute the color falloff from the splat center, while the point cloud can simply assign a static color. It also does not have to worry about alpha blending or transparency.
+
+All of these differences make a meaningful impact on the render time. Here's a table comparing the render times for the bonsai scene as seen above.
+
+| Configuration             | Render time (ms) |
+| :------------------------ | :--------------- |
+| Gaussian, 1.0× splat size | 0.483            |
+| Gaussian, 1.5× splat size | 1.69             |
+| Point cloud               | 0.130            |
 
 > For gaussian renderer, how does changing the workgroup-size affect performance? Why do you think this is?
 
@@ -70,3 +99,4 @@ The preprocessing performs three major tasks. First, it ingests the raw gaussian
 - [stats.js](https://github.com/mrdoob/stats.js)
 - [wgpu-matrix](https://github.com/greggman/wgpu-matrix)
 - Special thanks to Shrek Shao (from the Google WebGPU team) and the original [differential gaussian rasterizer](https://github.com/graphdeco-inria/diff-gaussian-rasterization) implementation
+- [CIS 5650](https://cis5650-fall-2025.github.io) for providing the base code, including PLY scene loading, much of the point cloud renderer, and the radix sort compute pass.
