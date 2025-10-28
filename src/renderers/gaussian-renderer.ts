@@ -1,6 +1,6 @@
 import { PointCloud } from "../utils/load";
 import { get_sorter, c_histogram_block_rows, C } from "../sort/sort";
-import { Renderer } from "./renderer";
+import type { PerfTimer, Renderer } from "./renderer";
 
 import preprocessWgsl from "../shaders/preprocess.wgsl";
 import gaussianWgsl from "../shaders/gaussian.wgsl";
@@ -286,7 +286,7 @@ export default function get_renderer(
   //    Return Render Object
   // ===============================================
   return {
-    frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView) => {
+    frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView, perf?: PerfTimer) => {
       encoder.clearBuffer(sorter.sort_dispatch_indirect_buffer, 0, 4);
       encoder.clearBuffer(sorter.sort_info_buffer, 0, 4);
       encoder.clearBuffer(splatsStorageBuffer);
@@ -320,6 +320,9 @@ export default function get_renderer(
               storeOp: "store",
             },
           ],
+          timestampWrites: perf
+            ? { querySet: perf.querySet, beginningOfPassWriteIndex: 0, endOfPassWriteIndex: 1 }
+            : undefined,
         });
 
         renderPass.setPipeline(renderPipeline);
@@ -327,6 +330,19 @@ export default function get_renderer(
         renderPass.drawIndirect(indirectBuffer, 0);
 
         renderPass.end();
+
+        if (perf) {
+          encoder.resolveQuerySet(perf.querySet, 0, perf.querySet.count, perf.resolveBuffer, 0);
+          if (perf.resultBuffer.mapState === "unmapped") {
+            encoder.copyBufferToBuffer(
+              perf.resolveBuffer,
+              0,
+              perf.resultBuffer,
+              0,
+              perf.resultBuffer.size
+            );
+          }
+        }
       }
     },
     camera_buffer,

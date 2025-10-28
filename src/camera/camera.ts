@@ -58,7 +58,7 @@ function get_projection_matrix(znear: number, zfar: number, fov_x: number, fov_y
   return p;
 }
 
-interface CameraPreset {
+export interface CameraPreset {
   position: Vec3;
   rotation: Mat4;
 }

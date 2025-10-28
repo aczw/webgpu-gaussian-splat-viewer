@@ -8,26 +8,31 @@ import { assert } from "./utils/util";
     h.innerText = "WebGPU is not supported in this browser.";
     return;
   }
+
   const adapter = await navigator.gpu.requestAdapter({
     powerPreference: "high-performance",
   });
+
   if (adapter === null) {
     const h = document.querySelector("#title") as HTMLElement;
     h.innerText = "No adapter is available for WebGPU.";
     return;
   }
 
+  const canTimestamp = adapter.features.has("timestamp-query");
+  console.log("[Info] Adapter can timestamp:", canTimestamp);
+
   const device = await adapter.requestDevice({
     requiredLimits: {
-      maxComputeWorkgroupStorageSize:
-        adapter.limits.maxComputeWorkgroupStorageSize,
+      maxComputeWorkgroupStorageSize: adapter.limits.maxComputeWorkgroupStorageSize,
       maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize,
     },
+    requiredFeatures: canTimestamp ? ["timestamp-query"] : [],
   });
 
   const canvas = document.querySelector<HTMLCanvasElement>("#webgpu-canvas");
   assert(canvas !== null);
   const context = canvas.getContext("webgpu") as GPUCanvasContext;
 
-  init(canvas, context, device);
+  init(canvas, context, device, canTimestamp);
 })();
