@@ -45,11 +45,11 @@ export default async function init(
 
   // Tweakpane: easily adding tweak control for parameters.
   const params = {
-    fps: 0.0,
-    gaussian_multiplier: 1,
-    renderer: "gaussian",
-    ply_file: "",
-    cam_file: "",
+    FPS: 0.0,
+    "Splat size multiplier": 1,
+    Renderer: "gaussian",
+    "PLY file": "",
+    "Camera JSON file": "",
   };
 
   const pane = new Pane({
@@ -58,16 +58,17 @@ export default async function init(
   });
   pane.registerPlugin(TweakpaneFileImportPlugin);
   {
-    pane.addMonitor(params, "fps", {
+    pane.addMonitor(params, "FPS", {
+      interval: 50,
       readonly: true,
     });
   }
   {
     pane
-      .addInput(params, "renderer", {
+      .addInput(params, "Renderer", {
         options: {
-          pointcloud: "pointcloud",
-          gaussian: "gaussian",
+          "Point Cloud": "pointcloud",
+          Gaussian: "gaussian",
         },
       })
       .on("change", (e) => {
@@ -76,11 +77,11 @@ export default async function init(
   }
   {
     pane
-      .addInput(params, "ply_file", {
+      .addInput(params, "PLY file", {
         view: "file-input",
         lineCount: 3,
         filetypes: [".ply"],
-        invalidFiletypeMessage: "We can't accept those filetypes!",
+        invalidFiletypeMessage: "We can't accept those file types!",
       })
       .on("change", async (file) => {
         const uploadedFile = file.value;
@@ -102,7 +103,7 @@ export default async function init(
             pointcloud: pointcloud_renderer,
             gaussian: gaussian_renderer,
           };
-          renderer = renderers[params.renderer];
+          renderer = renderers[params["Renderer"]];
           ply_file_loaded = true;
         } else {
           ply_file_loaded = false;
@@ -111,7 +112,7 @@ export default async function init(
   }
   {
     pane
-      .addInput(params, "cam_file", {
+      .addInput(params, "Camera JSON file", {
         view: "file-input",
         lineCount: 3,
         filetypes: [".json"],
@@ -129,7 +130,7 @@ export default async function init(
       });
   }
   {
-    pane.addInput(params, "gaussian_multiplier", { min: 0, max: 1.5 }).on("change", (e) => {
+    pane.addInput(params, "Splat size multiplier", { min: 0, max: 1.5 }).on("change", (e) => {
       gaussian_renderer?.updateScaling(e.value);
     });
   }
@@ -155,7 +156,7 @@ export default async function init(
 
   function frame() {
     if (ply_file_loaded && cam_file_loaded) {
-      params.fps = (1.0 / timeReturn()) * 1000.0;
+      params.FPS = (1.0 / timeReturn()) * 1000.0;
       time();
       const encoder = device.createCommandEncoder();
       const texture_view = context.getCurrentTexture().createView();
