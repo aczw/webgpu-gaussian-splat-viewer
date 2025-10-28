@@ -286,7 +286,7 @@ export default function get_renderer(
   //    Return Render Object
   // ===============================================
   return {
-    frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView, perf?: PerfTimer) => {
+    frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView, perfs: PerfTimer[]) => {
       encoder.clearBuffer(sorter.sort_dispatch_indirect_buffer, 0, 4);
       encoder.clearBuffer(sorter.sort_info_buffer, 0, 4);
       encoder.clearBuffer(splatsStorageBuffer);
@@ -311,6 +311,8 @@ export default function get_renderer(
       sorter.sort(encoder);
 
       {
+        const perf = perfs[0];
+
         const renderPass = encoder.beginRenderPass({
           label: "Gaussian indirect render pass",
           colorAttachments: [

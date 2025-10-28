@@ -15,8 +15,36 @@ export type PerfTimer = {
 };
 
 export interface Renderer {
-  frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView, perf?: PerfTimer) => void;
+  frame: (encoder: GPUCommandEncoder, texture_view: GPUTextureView, perfs: PerfTimer[]) => void;
   camera_buffer: GPUBuffer;
+}
+
+function createPerfTimer(
+  device: GPUDevice,
+  canTimestamp: boolean,
+  label: string
+): PerfTimer | null {
+  if (!canTimestamp) return null;
+
+  const querySet = device.createQuerySet({
+    label: `${label} query set`,
+    type: "timestamp",
+    count: 2,
+  });
+
+  const resolveBuffer = device.createBuffer({
+    label: `${label} resolve buffer`,
+    size: querySet.count * 8 /* 64 bits */,
+    usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
+  });
+
+  const resultBuffer = device.createBuffer({
+    label: `${label} result buffer`,
+    size: resolveBuffer.size,
+    usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+  });
+
+  return { querySet, resolveBuffer, resultBuffer };
 }
 
 export default async function init(
@@ -192,29 +220,8 @@ export default async function init(
     }
   });
 
-  const perf: PerfTimer = (() => {
-    if (!canTimestamp) return;
-
-    const querySet = device.createQuerySet({
-      label: "Performance query set",
-      type: "timestamp",
-      count: 2,
-    });
-
-    const resolveBuffer = device.createBuffer({
-      label: "Performance resolve buffer",
-      size: querySet.count * 8 /* 64 bits */,
-      usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC,
-    });
-
-    const resultBuffer = device.createBuffer({
-      label: "Performance result buffer",
-      size: resolveBuffer.size,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
-    });
-
-    return { canTimestamp, querySet, resolveBuffer, resultBuffer };
-  })();
+  const preprocessPerf = createPerfTimer(device, canTimestamp, "Gaussian preprocess time");
+  const renderPerf = createPerfTimer(device, canTimestamp, "Render time");
 
   function frame() {
     if (ply_file_loaded && cam_file_loaded) {
@@ -223,15 +230,20 @@ export default async function init(
 
       const encoder = device.createCommandEncoder();
       const texture_view = context.getCurrentTexture().createView();
-      renderer.frame(encoder, texture_view, canTimestamp ? perf : null);
+
+      const perfs: PerfTimer[] = [];
+      if (canTimestamp) perfs.push(renderPerf);
+      if (params.renderer === "gaussian") perfs.push(preprocessPerf);
+
+      renderer.frame(encoder, texture_view, perfs);
 
       device.queue.submit([encoder.finish()]);
 
-      if (canTimestamp && perf.resultBuffer.mapState === "unmapped") {
-        perf.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
-          const times = new BigInt64Array(perf.resultBuffer.getMappedRange());
+      if (canTimestamp && renderPerf.resultBuffer.mapState === "unmapped") {
+        renderPerf.resultBuffer.mapAsync(GPUMapMode.READ).then(() => {
+          const times = new BigInt64Array(renderPerf.resultBuffer.getMappedRange());
           params.renderTime = Number(times[1] - times[0]) / 1000;
-          perf.resultBuffer.unmap();
+          renderPerf.resultBuffer.unmap();
         });
       }
     }
