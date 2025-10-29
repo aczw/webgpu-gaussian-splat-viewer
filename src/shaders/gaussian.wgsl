@@ -9,7 +9,7 @@ struct CameraUniforms {
 
 struct Splat {
     center: vec2<f32>, /* In NDC coordinates */
-    radius: vec2<f32>, /* In NDC coordinates */
+    radius: f32, /* In pixel coordinates */
     conicOpacity: vec4<f32>,
     color: vec3<f32>,
 };
@@ -38,7 +38,7 @@ fn vs_main(
 
     // Create the six possible vertex positions in NDC space
     // TODO(aczw): surely there has to be a better way to do this
-    let size: vec2<f32> = splat.radius;
+    let size: vec2<f32> = vec2<f32>(splat.radius) / camera.viewport;
     let positions = array<vec2<f32>, 6>(
         vec2<f32>(-size.x, -size.y), vec2<f32>(size.x, -size.y), vec2<f32>(-size.x, size.y),
         vec2<f32>(-size.x, size.y), vec2<f32>(size.x, -size.y), vec2<f32>(size.x, size.y)

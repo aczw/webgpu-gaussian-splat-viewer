@@ -53,7 +53,9 @@ export default function get_renderer(
   const splatsStorageBuffer = createBuffer(
     device,
     "Gaussian splats storage buffer",
-    pc.num_points * (2 + 2 + 4 + 3) * Float32Array.BYTES_PER_ELEMENT /* num_points * 44 */,
+    pc.num_points *
+      (2 + 1 + 4 + 3 + 2) /* Padding */ *
+      Float32Array.BYTES_PER_ELEMENT /* num_points * 48 */,
     GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE
   );
 
