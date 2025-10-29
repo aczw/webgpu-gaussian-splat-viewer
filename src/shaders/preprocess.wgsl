@@ -34,10 +34,9 @@ struct Gaussian {
 };
 
 struct Splat {
-    center: vec2<f32>, /* In NDC coordinates */
-    radius: f32, /* In pixel coordinates */
-    conicOpacity: vec4<f32>,
-    color: vec3<f32>,
+    center: u32, /* In NDC coordinates */
+    conicOpacity: array<u32, 2>,
+    colorRadius: array<u32, 2>, /* Radius is in pixel coordinates */
 };
 
 @group(0) @binding(0) var<uniform> numPoints: u32;
@@ -245,6 +244,11 @@ fn preprocess(
     // Compute conic (inverse 2D covariance)
     let detInv = 1.0 / det;
     let conic = vec3<f32>(cov.z * detInv, -cov.y * detInv, cov.x * detInv);
+    let opacity: f32 = 1.0 / (1.0 + exp(-posZopacity.y));
+
+    var conicOpacity: array<u32, 2>;
+    conicOpacity[0] = pack2x16float(conic.xy);
+    conicOpacity[1] = pack2x16float(vec2<f32>(conic.z, opacity));
 
     // Compute eigenvalues of covariance
     let mid = 0.5 * (cov.x + cov.z);
@@ -252,16 +256,19 @@ fn preprocess(
     let lambda2: f32 = mid - sqrt(max(0.1, mid * mid - det));
 
     // Compute radius of gaussian. Round to the nearest pixel because we're in pixel space
-    let pixelRadius = ceil(3.0 * sqrt(max(lambda1, lambda2)));
+    let pixelRadius: f32 = ceil(3.0 * sqrt(max(lambda1, lambda2)));
 
     let direction = normalize(viewPos.xyz);
     let color: vec3<f32> = computeColorFromSH(direction, index, settings.shDeg);
 
+    var colorRadius: array<u32, 2>;
+    colorRadius[0] = pack2x16float(color.xy);
+    colorRadius[1] = pack2x16float(vec2<f32>(color.z, pixelRadius));
+
     var splat: Splat;
-    splat.center = ndcPos.xy;
-    splat.radius = pixelRadius;
-    splat.conicOpacity = vec4<f32>(conic, 1.0 / (1.0 + exp(-posZopacity.y)));
-    splat.color = color;
+    splat.center = pack2x16float(ndcPos.xy);
+    splat.conicOpacity = conicOpacity;
+    splat.colorRadius = colorRadius;
 
     let prevSize: u32 = atomicAdd(&sort_infos.keys_size, 1u);
     splats[prevSize] = splat;

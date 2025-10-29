@@ -23,6 +23,8 @@ const createBuffer = (
   return buffer;
 };
 
+const BYTES_PER_F16 = 2;
+
 export default function get_renderer(
   pc: PointCloud,
   device: GPUDevice,
@@ -53,9 +55,7 @@ export default function get_renderer(
   const splatsStorageBuffer = createBuffer(
     device,
     "Gaussian splats storage buffer",
-    pc.num_points *
-      (2 + 1 + 4 + 3 + 2) /* Padding */ *
-      Float32Array.BYTES_PER_ELEMENT /* num_points * 48 */,
+    pc.num_points * (2 + 3 + 1 + 3 + 1) * BYTES_PER_F16 /* num_points * 20 */,
     GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC | GPUBufferUsage.STORAGE
   );
 

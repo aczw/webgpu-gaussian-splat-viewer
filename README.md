@@ -52,6 +52,9 @@ For additional performance, we should cull splats that lie outside of the view f
 
 Of note is that I use a slightly bigger bounding box for culling than the view frustum. For example, given normalized device coordinates, I check whether the splat center is between -1.2 and 1.2. This allows splats on the edge of the screen to still show up on screen.
 
+51028368 bytes
+Preprocess / Render 1.13 / 2.75
+
 ### Sorting the splats
 
 Alpha blending depends on the order we draw the splats, so have to sort them in order of view space depth. To do this, we associate each splat with a key that combines its index and its position's Z value in view space. We wrote these values into separate buffers that were populated during preprocessing.
