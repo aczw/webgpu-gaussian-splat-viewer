@@ -52,8 +52,20 @@ For additional performance, we should cull splats that lie outside of the view f
 
 Of note is that I use a slightly bigger bounding box for culling than the view frustum. For example, given normalized device coordinates, I check whether the splat center is between -1.2 and 1.2. This allows splats on the edge of the screen to still show up on screen.
 
-51028368 bytes
-Preprocess / Render 1.13 / 2.75
+#### Optimization: half-precision splat data
+
+Originally, after calculating all the splat data for the render pass, I stored the values as `f32` in the storage buffer. The issue is that, apart from the color calculations, all the gaussian data is `f16` to begin with; therefore, storing the splat data in `f16` means minimal precision loss, and would help a lot with memory usage.
+
+![](images/splat_f32_vs_f16_alignment.png)
+
+The [WGSL offset computer](https://webgpufundamentals.org/webgpu/lessons/resources/wgsl-offset-computer.html#x=5d00000100d001000000000000003d888b0237284d3025f2381bcb288a93796c9efe813c10e7d58a36dfb8ee69e674ee6c73513eeab55ad974551e1745dc77e7b1cb802fe8ebb438ece5e690a962d4564dd5e6ddfeef561db7abdee84053ccbade01c8bc977c95f388588f77df900b85ce33cbfb4dc792326a8addb20cef879f1597d57ecee4510dc632c449512ae53daa5b1a56bf64d1a9e541b3fa2cb89bf1804ccc4a43fd21c912a5a6f60235a9eb72000c8dd095ced03f6c3b17c1bfd56f2806ee6c74091d5153deddf3b8c1a564657ddd8be9502e200b7b58f33fd88a85ca133d693d21b70010401beebcfeaf7da581affedd7e71) shows the significance of this change pretty well. 8 bytes of additional padding are removed, and each splat is 28 bytes smaller. Here's a table comparing metrics from rendering the bicycle scene with all splats visible.
+
+| Configuration             | Splat storage buffer size (bytes) | Preprocess time (ms) | Render time (ms) |
+| :------------------------ | :-------------------------------: | :------------------: | :--------------: |
+| Unpacked `f32` splat data |             51028368              |         1.13         |       2.75       |
+| Packed `f16` splat data   |             21261820              |         1.10         |       2.33       |
+
+Not only are we using less GPU memory, this has also positively affected our preprocessing and rendering times, likely due to better memory access patterns.
 
 ### Sorting the splats
 
